@@ -1307,13 +1307,61 @@ public:
   void subss(XMMRegister dst, Address        src) { Assembler::subss(dst, src); }
   void subss(XMMRegister dst, AddressLiteral src, Register rscratch = noreg);
 
+private:
+
+  void ucmp_flt2int_conv(Register dst, bool unordered_is_less) {
+    Label L;
+    if (unordered_is_less) {
+      if (VM_Version::supports_avx10_2()) {
+        movl(dst, 1);
+        jcc(Assembler::above, L);
+        movl(dst, 0);
+        jcc(Assembler::equal , L);
+        decrementl(dst);
+      } else {
+        movl(dst, -1);
+        jcc(Assembler::parity, L);
+        jcc(Assembler::below , L);
+        movl(dst, 0);
+        jcc(Assembler::equal , L);
+        increment(dst);
+      }
+    } else { // unordered is greater
+      if (VM_Version::supports_avx10_2()) {
+        movl(dst, -1);
+        jcc(Assembler::less, L);
+        movl(dst, 0);
+        jcc(Assembler::equal , L);
+        increment(dst);
+      } else {
+        movl(dst, 1);
+        jcc(Assembler::parity, L);
+        jcc(Assembler::above , L);
+        movl(dst, 0);
+        jcc(Assembler::equal , L);
+        decrementl(dst);
+      }
+    }
+    bind(L);
+  }
+
+public:
+
   void ucomiss(XMMRegister dst, XMMRegister    src) { Assembler::ucomiss(dst, src); }
   void ucomiss(XMMRegister dst, Address        src) { Assembler::ucomiss(dst, src); }
   void ucomiss(XMMRegister dst, AddressLiteral src, Register rscratch = noreg);
 
+  void ucomxss(XMMRegister dst, XMMRegister    src) { Assembler::ucomxss(dst, src); }
+  void ucomxss(XMMRegister dst, Address        src) { Assembler::ucomxss(dst, src); }
+  void ucomxss(XMMRegister dst, AddressLiteral src, Register rscratch = noreg);
+
   void ucomisd(XMMRegister dst, XMMRegister    src) { Assembler::ucomisd(dst, src); }
   void ucomisd(XMMRegister dst, Address        src) { Assembler::ucomisd(dst, src); }
   void ucomisd(XMMRegister dst, AddressLiteral src, Register rscratch = noreg);
+
+  void ucomxsd(XMMRegister dst, XMMRegister    src) { Assembler::ucomxsd(dst, src); }
+  void ucomxsd(XMMRegister dst, Address        src) { Assembler::ucomxsd(dst, src); }
+  void ucomxsd(XMMRegister dst, AddressLiteral src, Register rscratch = noreg);
 
   // Bitwise Logical XOR of Packed Double-Precision Floating-Point Values
   void xorpd(XMMRegister dst, XMMRegister    src);

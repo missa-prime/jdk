@@ -1595,21 +1595,29 @@ void TemplateTable::convert() {
   case Bytecodes::_f2i:
   {
     Label L;
-    __ cvttss2sil(rax, xmm0);
-    __ cmpl(rax, 0x80000000); // NaN or overflow/underflow?
-    __ jcc(Assembler::notEqual, L);
-    __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::f2i), 1);
+    if (VM_Version::supports_avx10_2()) {
+      __ evcvttss2sisl(rax, xmm0);
+    } else {
+      __ cvttss2sil(rax, xmm0);
+      __ cmpl(rax, 0x80000000); // NaN or overflow/underflow?
+      __ jcc(Assembler::notEqual, L);
+      __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::f2i), 1);
+    }
     __ bind(L);
   }
     break;
   case Bytecodes::_f2l:
   {
     Label L;
-    __ cvttss2siq(rax, xmm0);
-    // NaN or overflow/underflow?
-    __ cmp64(rax, ExternalAddress((address) &is_nan), rscratch1);
-    __ jcc(Assembler::notEqual, L);
-    __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::f2l), 1);
+    if (VM_Version::supports_avx10_2()) {
+      __ evcvttss2sisq(rax, xmm0);
+    } else {
+      __ cvttss2siq(rax, xmm0);
+      // NaN or overflow/underflow?
+      __ cmp64(rax, ExternalAddress((address) &is_nan), rscratch1);
+      __ jcc(Assembler::notEqual, L);
+      __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::f2l), 1);
+    }
     __ bind(L);
   }
     break;
@@ -1619,21 +1627,29 @@ void TemplateTable::convert() {
   case Bytecodes::_d2i:
   {
     Label L;
-    __ cvttsd2sil(rax, xmm0);
-    __ cmpl(rax, 0x80000000); // NaN or overflow/underflow?
-    __ jcc(Assembler::notEqual, L);
-    __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::d2i), 1);
+    if (VM_Version::supports_avx10_2()) {
+      __ evcvttsd2sisl(rax, xmm0);
+    } else {
+      __ cvttsd2sil(rax, xmm0);
+      __ cmpl(rax, 0x80000000); // NaN or overflow/underflow?
+      __ jcc(Assembler::notEqual, L);
+      __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::d2i), 1);
+    }
     __ bind(L);
   }
     break;
   case Bytecodes::_d2l:
   {
     Label L;
-    __ cvttsd2siq(rax, xmm0);
-    // NaN or overflow/underflow?
-    __ cmp64(rax, ExternalAddress((address) &is_nan), rscratch1);
-    __ jcc(Assembler::notEqual, L);
-    __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::d2l), 1);
+    if (VM_Version::supports_avx10_2()) {
+      __ evcvttsd2sisq(rax, xmm0);
+    } else {
+      __ cvttsd2siq(rax, xmm0);
+      // NaN or overflow/underflow?
+      __ cmp64(rax, ExternalAddress((address) &is_nan), rscratch1);
+      __ jcc(Assembler::notEqual, L);
+      __ call_VM_leaf(CAST_FROM_FN_PTR(address, SharedRuntime::d2l), 1);
+    }
     __ bind(L);
   }
     break;
@@ -1662,25 +1678,47 @@ void TemplateTable::float_cmp(bool is_float, int unordered_result) {
   if (is_float) {
     // XXX get rid of pop here, use ... reg, mem32
     __ pop_f(xmm1);
-    __ ucomiss(xmm1, xmm0);
+    if (VM_Version::supports_avx10_2()) {
+      __ ucomxss(xmm1, xmm0);
+    } else {
+      __ ucomiss(xmm1, xmm0);
+    }
   } else {
     // XXX get rid of pop here, use ... reg, mem64
     __ pop_d(xmm1);
-    __ ucomisd(xmm1, xmm0);
+    if (VM_Version::supports_avx10_2()) {
+      __ ucomxsd(xmm1, xmm0);
+    } else {
+      __ ucomisd(xmm1, xmm0);
+    }
   }
   if (unordered_result < 0) {
-    __ movl(rax, -1);
-    __ jccb(Assembler::parity, done);
-    __ jccb(Assembler::below, done);
-    __ setb(Assembler::notEqual, rdx);
-    __ movzbl(rax, rdx);
+    if (VM_Version::supports_avx10_2()) {
+      __ setb(Assembler::above, rdx);
+      __ movzbl(rax, rdx);
+      __ jcc(Assembler::aboveEqual, done);
+      __ movl(rax, -1);
+    } else {
+      __ movl(rax, -1);
+      __ jccb(Assembler::parity, done);
+      __ jccb(Assembler::below, done);
+      __ setb(Assembler::notEqual, rdx);
+      __ movzbl(rax, rdx);
+    }
   } else {
-    __ movl(rax, 1);
-    __ jccb(Assembler::parity, done);
-    __ jccb(Assembler::above, done);
-    __ movl(rax, 0);
-    __ jccb(Assembler::equal, done);
-    __ decrementl(rax);
+    if (VM_Version::supports_avx10_2()) {
+      __ movl(rax, -1);
+      __ jccb(Assembler::less, done);
+      __ setb(Assembler::above, rdx);
+      __ movzbl(rax, rdx);
+    } else {
+      __ movl(rax, 1);
+      __ jccb(Assembler::parity, done);
+      __ jccb(Assembler::above, done);
+      __ movl(rax, 0);
+      __ jccb(Assembler::equal, done);
+      __ decrementl(rax);
+    }
   }
   __ bind(done);
 }

@@ -1384,47 +1384,23 @@ void MacroAssembler::cmp32(Register src1, Address src2) {
 }
 
 void MacroAssembler::cmpsd2int(XMMRegister opr1, XMMRegister opr2, Register dst, bool unordered_is_less) {
-  ucomisd(opr1, opr2);
-
-  Label L;
-  if (unordered_is_less) {
-    movl(dst, -1);
-    jcc(Assembler::parity, L);
-    jcc(Assembler::below , L);
-    movl(dst, 0);
-    jcc(Assembler::equal , L);
-    increment(dst);
-  } else { // unordered is greater
-    movl(dst, 1);
-    jcc(Assembler::parity, L);
-    jcc(Assembler::above , L);
-    movl(dst, 0);
-    jcc(Assembler::equal , L);
-    decrementl(dst);
+  if (VM_Version::supports_avx10_2()) {
+    ucomxsd(opr1, opr2);
+  } else {
+    ucomisd(opr1, opr2);
   }
-  bind(L);
+
+  ucmp_flt2int_conv(dst, unordered_is_less);
 }
 
 void MacroAssembler::cmpss2int(XMMRegister opr1, XMMRegister opr2, Register dst, bool unordered_is_less) {
-  ucomiss(opr1, opr2);
-
-  Label L;
-  if (unordered_is_less) {
-    movl(dst, -1);
-    jcc(Assembler::parity, L);
-    jcc(Assembler::below , L);
-    movl(dst, 0);
-    jcc(Assembler::equal , L);
-    increment(dst);
-  } else { // unordered is greater
-    movl(dst, 1);
-    jcc(Assembler::parity, L);
-    jcc(Assembler::above , L);
-    movl(dst, 0);
-    jcc(Assembler::equal , L);
-    decrementl(dst);
+  if (VM_Version::supports_avx10_2()) {
+    ucomxss(opr1, opr2);
+  } else {
+    ucomiss(opr1, opr2);
   }
-  bind(L);
+
+  ucmp_flt2int_conv(dst, unordered_is_less);
 }
 
 
@@ -2656,6 +2632,17 @@ void MacroAssembler::ucomisd(XMMRegister dst, AddressLiteral src, Register rscra
   }
 }
 
+void MacroAssembler::ucomxsd(XMMRegister dst, AddressLiteral src, Register rscratch) {
+  assert(rscratch != noreg || always_reachable(src), "missing");
+
+  if (reachable(src)) {
+    Assembler::ucomxsd(dst, as_Address(src));
+  } else {
+    lea(rscratch, src);
+    Assembler::ucomxsd(dst, Address(rscratch, 0));
+  }
+}
+
 void MacroAssembler::ucomiss(XMMRegister dst, AddressLiteral src, Register rscratch) {
   assert(rscratch != noreg || always_reachable(src), "missing");
 
@@ -2664,6 +2651,17 @@ void MacroAssembler::ucomiss(XMMRegister dst, AddressLiteral src, Register rscra
   } else {
     lea(rscratch, src);
     Assembler::ucomiss(dst, Address(rscratch, 0));
+  }
+}
+
+void MacroAssembler::ucomxss(XMMRegister dst, AddressLiteral src, Register rscratch) {
+  assert(rscratch != noreg || always_reachable(src), "missing");
+
+  if (reachable(src)) {
+    Assembler::ucomxss(dst, as_Address(src));
+  } else {
+    lea(rscratch, src);
+    Assembler::ucomxss(dst, Address(rscratch, 0));
   }
 }
 
